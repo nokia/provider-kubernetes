@@ -23,6 +23,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/json"
@@ -464,7 +465,7 @@ type objFinalizer struct {
 	client client.Client
 }
 
-type refFinalizerFn func(context.Context, *unstructured.Unstructured, string) error
+type refFinalizerFn func(context.Context, *unstructured.Unstructured, string, metav1.OwnerReference) error
 
 func (f *objFinalizer) handleRefFinalizer(ctx context.Context, obj *v1alpha1.Object, finalizerFn refFinalizerFn) error {
 	// Loop through references to resolve each referenced resource
@@ -488,7 +489,8 @@ func (f *objFinalizer) handleRefFinalizer(ctx context.Context, obj *v1alpha1.Obj
 		}
 
 		finalizerName := refFinalizerNamePrefix + string(obj.UID)
-		if err = finalizerFn(ctx, res, finalizerName); err != nil {
+		ownerRef := meta.AsOwner(meta.TypedReferenceTo(obj, obj.GetObjectKind().GroupVersionKind()))
+		if err = finalizerFn(ctx, res, finalizerName, ownerRef); err != nil {
 			return err
 		}
 	}
@@ -515,9 +517,10 @@ func (f *objFinalizer) AddFinalizer(ctx context.Context, res resource.Object) er
 
 	// Add finalizer to referenced resources if not exists
 	err = f.handleRefFinalizer(ctx, obj, func(
-		ctx context.Context, res *unstructured.Unstructured, finalizer string) error {
+		ctx context.Context, res *unstructured.Unstructured, finalizer string, ownerRef metav1.OwnerReference) error {
 		if !meta.FinalizerExists(res, finalizer) {
 			meta.AddFinalizer(res, finalizer)
+			meta.AddOwnerReference(res, ownerRef)
 			if err := f.client.Update(ctx, res); err != nil {
 				return errors.Wrap(err, errAddReferenceFinalizer)
 			}
@@ -545,7 +548,7 @@ func (f *objFinalizer) RemoveFinalizer(ctx context.Context, res resource.Object)
 
 	// Remove finalizer from referenced resources if exists
 	err = f.handleRefFinalizer(ctx, obj, func(
-		ctx context.Context, res *unstructured.Unstructured, finalizer string) error {
+		ctx context.Context, res *unstructured.Unstructured, finalizer string, ownerRef metav1.OwnerReference) error {
 		if meta.FinalizerExists(res, finalizer) {
 			meta.RemoveFinalizer(res, finalizer)
 			if err := f.client.Update(ctx, res); err != nil {
