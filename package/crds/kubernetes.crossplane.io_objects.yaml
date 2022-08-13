@@ -243,6 +243,11 @@ spec:
                           default: kubernetes.crossplane.io/v1alpha1
                           description: APIVersion of the referenced object.
                           type: string
+                        blockOwnerDeletion:
+                          default: false
+                          description: BlockOwnerDeletion flag to support cascading
+                            forward deletion
+                          type: boolean
                         kind:
                           default: Object
                           description: Kind of the referenced object.
@@ -265,6 +270,11 @@ spec:
                           default: kubernetes.crossplane.io/v1alpha1
                           description: APIVersion of the referenced object.
                           type: string
+                        blockOwnerDeletion:
+                          default: false
+                          description: BlockOwnerDeletion flag to support cascading
+                            forward deletion
+                          type: boolean
                         fieldPath:
                           description: FieldPath is the path of the field on the resource
                             whose value is to be used as input.
