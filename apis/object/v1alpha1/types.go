@@ -68,9 +68,6 @@ type DependsOn struct {
 	// Namespace of the referenced object.
 	// +optional
 	Namespace string `json:"namespace,omitempty"`
-	// BlockOwnerDeletion flag to support cascading forward deletion
-	// +optional
-	BlockOwnerDeletion *bool `json:"blockOwnerDeletion,omitempty"`
 }
 
 // PatchesFrom refers to an object by Name, Kind, APIVersion, etc., and patch
