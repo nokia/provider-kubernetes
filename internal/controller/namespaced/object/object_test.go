@@ -376,7 +376,7 @@ func TestObserve(t *testing.T) {
 				},
 			},
 			want: want{
-				out: managed.ExternalObservation{ResourceExists: true, ResourceUpToDate: false},
+				out: managed.ExternalObservation{ResourceExists: true, ResourceUpToDate: false, Diff: `{"metadata":{"labels":null}}`},
 				err: nil,
 			},
 		},

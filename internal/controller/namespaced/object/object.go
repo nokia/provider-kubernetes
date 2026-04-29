@@ -28,6 +28,7 @@ import (
 	"github.com/google/cel-go/cel"
 	celtypes "github.com/google/cel-go/common/types"
 	"github.com/pkg/errors"
+	"github.com/wI2L/jsondiff"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
@@ -35,7 +36,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/json"
-	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/rest"
@@ -88,10 +88,11 @@ const (
 	errNotKubernetesObject        = "managed resource is not an Object custom resource"
 	errBuildKubeForProviderConfig = "cannot build kube client for provider config"
 
-	errGetObservedState        = "cannot get observed state"
-	errGetDesiredState         = "cannot get desired state"
-	errUnmarshalTemplate       = "cannot unmarshal template"
-	errFailedToMarshalExisting = "cannot marshal existing resource"
+	errGetObservedState           = "cannot get observed state"
+	errGetDesiredState            = "cannot get desired state"
+	errUnmarshalTemplate          = "cannot unmarshal template"
+	errFailedToMarshalExisting    = "cannot marshal existing resource"
+	errFailedToGenerateMergePatch = "cannot generate merge patch"
 
 	errGetReferencedResource       = "cannot get referenced resource"
 	errPatchFromReferencedResource = "cannot patch from referenced resource"
@@ -728,14 +729,18 @@ func (c *external) resolveReferencies(ctx context.Context, obj *v1alpha1.Object)
 func (c *external) handleObservation(ctx context.Context, obj *v1alpha1.Object, last, desired *unstructured.Unstructured) (managed.ExternalObservation, error) {
 	isUpToDate := false
 
-	if !sets.New[xpv1.ManagementAction](obj.GetManagementPolicies()...).
-		HasAny(xpv1.ManagementActionUpdate, xpv1.ManagementActionCreate, xpv1.ManagementActionAll) {
-		// Treated as up-to-date as we don't update or create the resource
-		isUpToDate = true
-	}
-	if last != nil && equality.Semantic.DeepEqual(last, desired) {
-		// Mark as up-to-date since last is equal to desired
-		isUpToDate = true
+	if last != nil {
+		if equality.Semantic.DeepEqual(last, desired) {
+			// Mark as up-to-date since last is equal to desired
+			isUpToDate = true
+		} else {
+			d, err := jsondiff.MergePatch(last, desired)
+			return managed.ExternalObservation{
+				ResourceExists:   true,
+				ResourceUpToDate: false,
+				Diff:             string(d),
+			}, errors.Wrap(err, errFailedToGenerateMergePatch)
+		}
 	}
 
 	if isUpToDate {
